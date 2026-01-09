@@ -55,20 +55,24 @@ During setup, several issues were encountered due to:
   
 Below is the documented resolution process.
 1. Remove all containers (including hidden devcontainer containers). 
-  Powershell
-  `docker rm -f $(docker ps -aq) `
-  This ensures no container is still attached to old volumes.
+    Powershell
+
+    `docker rm -f $(docker ps -aq) `
+    This ensures no container is still attached to old volumes.
 
 2. Remove all project-related volumes.
-  Powershell
-  `docker volume rm -f sql-for-income-statement-linkedin_postgres-data`
-  `docker volume rm -f sql-for-income-statement-linkedin_devcontainer_postgres-data `
-  These volumes contained incompatible PostgreSQL data directories.
+   
+   Powershell
+
+    `docker volume rm -f sql-for-income-statement-linkedin_postgres-data`
+    `docker volume rm -f sql-for-income-statement-linkedin_devcontainer_postgres-data `
+
+    These volumes contained incompatible PostgreSQL data directories.
 
 3. Pin PostgreSQL to a stable version.  
-  In `docker-compose.yml`:
-  Yaml
-  `image: postgres:16`
+    In `docker-compose.yml`:
+    Yaml
+    `image: postgres:16`
 
 4. Rebuild the devcontainer.   
   In VS Code:
@@ -120,7 +124,7 @@ It uses a `try-except` block to skip "Empty Command" errors (common at the end o
 
 Note: Once this data is loaded, the `extract_load()` function can be commented out in `main.py` to allow for faster subsequent runs of the analytical layers.`
 
-1. Intermediate Financial Tables
+2. Intermediate Financial Tables
    
 Implemented accrual-to-cash timing adjustments, such as a 1-month lag for credit-based sales and purchases to model actual cash movement. To support accrual accounting and depreciation, the pipeline creates two tables before building the final report:
 
@@ -135,12 +139,12 @@ The final output is the dashboard_flux_analysis View.
 Logic: This is a View that joins the raw sales data with the custom financial schedules.
 Because it is a View, any small manual adjustment to the underlying sales or payments tables will be reflected in the Net Income and Gross Margin calculations instantly without re-running the Python script.
 
-1. Data Validation & Auditing 
+**Data Validation & Auditing:**
+
 To ensure the reliability of the system, custom audit scripts in the /scripts folder perform two critical checks:
 
-Revenue Audit (audit_revenue.py): Reconciles the aggregated financial views against granular sales records to confirm no data loss during transformation.
-
-Cash Flow Reconciliation (audit_cash.py): Validates the "Ending Cash" position by modeling inflows (Sales, Loans) and outflows (Purchases, Operating Expenses) against the simulated cash timing rules
+- Revenue Audit (audit_revenue.py): Reconciles the aggregated financial views against granular sales records to confirm no data loss during transformation.
+- Cash Flow Reconciliation (audit_cash.py): Validates the "Ending Cash" position by modeling inflows (Sales, Loans) and outflows (Purchases, Operating Expenses) against the simulated cash timing rules
 
 ## How to Adjust the Pipeline
 To modify the financial logic:

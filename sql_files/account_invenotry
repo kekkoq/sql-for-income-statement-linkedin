@@ -1,0 +1,34 @@
+CREATE MATERIALIZED VIEW account_inventory AS
+WITH product_prices AS (
+    -- Calculate average or max cost per product once
+    SELECT 
+        product_name, 
+        MAX(amount) AS unit_cost 
+    FROM purchases 
+    GROUP BY 1
+),
+annual_summary AS (
+    -- Get purchase totals per year
+    SELECT 
+        DATE_PART('year', purchase_at) AS year,
+        SUM(quantity * amount) AS annual_purchase_value
+    FROM purchases
+    GROUP BY 1
+
+    UNION ALL
+
+    -- Get sales value per year using the pre-calculated price map
+    SELECT 
+        DATE_PART('year', s.sale_at) AS year,
+        -SUM(s.quantity * pp.unit_cost) AS annual_purchase_value
+    FROM sales s
+    JOIN product_prices pp ON s.product_name = pp.product_name
+    GROUP BY 1
+)
+SELECT 
+    year,
+    'Inventory' AS account,
+    SUM(SUM(annual_purchase_value)) OVER (ORDER BY year) AS total_amount
+FROM annual_summary
+GROUP BY year
+ORDER BY year;

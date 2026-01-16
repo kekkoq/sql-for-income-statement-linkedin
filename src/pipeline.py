@@ -1,4 +1,3 @@
-
 from utils import get_engine, logger
 from sqlalchemy import text 
 import os
@@ -65,29 +64,29 @@ def create_custom_financial_tables():
             conn.execute(text("TRUNCATE TABLE equipment_depreciation_schedule;"))
 
             depreciation_sql = """
-            INSERT INTO equipment_depreciation_schedule (id, year, gross_val, annual_depreciation_expense)
-            WITH ppe_base AS (
-            SELECT 
-                id,
-                EXTRACT(YEAR FROM payment_date)::INT AS start_year,
-                amount AS cost
-            FROM payments 
-            WHERE payment_type = 'equipment'
-            )
-            SELECT 
-                p.id,
-                c.year,
-                p.cost AS gross_val,
-                CASE 
-                    WHEN c.year = p.start_year THEN (p.cost / 10.0) * 0.5
-                    WHEN c.year = p.start_year + 10 THEN (p.cost / 10.0) * 0.5
-                    WHEN c.year > p.start_year AND c.year < p.start_year + 10 THEN (p.cost / 10.0)
-                    ELSE 0 
-                END AS annual_depreciation_expense
-            FROM ppe_base p
-            CROSS JOIN (SELECT DISTINCT EXTRACT(YEAR FROM calendar_at)::INT AS year FROM calendar) c
-            WHERE c.year BETWEEN p.start_year AND p.start_year + 10
-            """
+                INSERT INTO equipment_depreciation_schedule (id, year, gross_val, annual_depreciation_expense)
+                WITH ppe_base AS (
+                SELECT 
+                    id,
+                    EXTRACT(YEAR FROM payment_date)::INT AS start_year,
+                    amount AS cost
+                FROM payments 
+                WHERE payment_type = 'equipment'
+                )
+                SELECT 
+                    p.id,
+                    c.year,
+                    p.cost AS gross_val,
+                    CASE 
+                        WHEN c.year = p.start_year THEN (p.cost / 10.0) * 0.5
+                        WHEN c.year = p.start_year + 10 THEN (p.cost / 10.0) * 0.5
+                        WHEN c.year > p.start_year AND c.year < p.start_year + 10 THEN (p.cost / 10.0)
+                        ELSE 0 
+                    END AS annual_depreciation_expense
+                FROM ppe_base p
+                CROSS JOIN (SELECT DISTINCT EXTRACT(YEAR FROM calendar_at)::INT AS year FROM calendar) c
+                WHERE c.year BETWEEN p.start_year AND p.start_year + 10
+                """
             conn.execute(text(depreciation_sql))
 
             # 2. Create and populate Accruals
@@ -95,20 +94,20 @@ def create_custom_financial_tables():
             conn.execute(text("TRUNCATE TABLE expense_accrual_schedule;"))
 
             accrual_sql = """
-            INSERT INTO expense_accrual_schedule (id, account, amount, accrual_date, cash_payment_date)
-            SELECT 
-                id,
-                payment_type AS account,
-                amount,
-                -- The P&L Date: The month PRIOR to the actual payment
-                DATE_TRUNC('month', payment_date - INTERVAL '1 month')::DATE AS accrual_date,
-                -- The Cash Date: When it actually left the bank
-                payment_date AS cash_payment_date
-            FROM payments
+                INSERT INTO expense_accrual_schedule (id, account, amount, accrual_date, cash_payment_date)
+                SELECT 
+                    id,
+                    payment_type AS account,
+                    amount,
+                    -- The P&L Date: The month PRIOR to the actual payment
+                    DATE_TRUNC('month', payment_date - INTERVAL '1 month')::DATE AS accrual_date,
+                    -- The Cash Date: When it actually left the bank
+                    payment_date AS cash_payment_date
+                FROM payments
                 WHERE 
                 payment_type IN ('wage', 'utility', 'tax')
                 AND EXTRACT(YEAR FROM payment_date) IN (2021, 2022, 2023);
-            """  
+                """  
             conn.execute(text(accrual_sql))
             conn.commit()
             logger.info("Custom financial tables created successfully.")
@@ -166,7 +165,7 @@ def create_focus_view(end_year=2023):
                 'Cash' AS account, 
                 -SUM(amount) AS amt
                 FROM payments 
-                WHERE payment_type IN ('equipment', 'interest', 'wage', 'utility', 'tax', 'loan', 'rent')
+                WHERE payment_type IN ('interest', 'wage', 'utility', 'tax', 'rent') -- excludes equipment and loan 
                 GROUP BY 1
                 UNION ALL
 
@@ -223,38 +222,60 @@ def create_focus_view(end_year=2023):
 
                 UNION ALL
                 -- 11. LOAN BALANCE (Liability)
-                -- Initial Loan Value (Increases Liability)
-                SELECT EXTRACT(YEAR FROM loan_at)::INT AS year, 'Loan_Principal' AS account, SUM(value) AS amt 
+            
+                SELECT 
+                    EXTRACT(YEAR FROM loan_at)::INT AS year, 
+                    'Loan_Principal' AS account, SUM(value) AS amt 
                 FROM loans GROUP BY 1
                 UNION ALL
-                -- Principal Payments (Decreases Liability)
-                SELECT EXTRACT(YEAR FROM payment_date)::INT AS year, 'Loan_Principal' AS account, -SUM(amount) AS amt 
-                FROM payments WHERE payment_type = 'loan' GROUP BY 1
 
+                -- Principal Payments (Decreases Liability)
+                SELECT 
+                    EXTRACT(YEAR FROM payment_date)::INT AS year, 
+                    'Loan_Principal' AS account, -SUM(amount) AS amt 
+                FROM payments 
+                WHERE payment_type = 'loan' GROUP BY 1
                 UNION ALL
-                -- 12. OPERATIONAL EXPENSES (P&L Accrual - the month incurred)
+
+                -- 12a. OPERATIONAL EXPENSES (P&L Accrual - the month incurred)
                 SELECT 
                     EXTRACT(YEAR FROM accrual_date)::INT AS year, 
                     account, 
                     -SUM(amount) AS amt
-                FROM expense_accrual_schedule GROUP BY 1, 2
+                FROM expense_accrual_schedule
 
+                GROUP BY 1, 2
                 UNION ALL
+
+                -- 12b. DIRECT RENT EXPENSE (Pulling directly from payments to the P&L)
+                SELECT 
+                    EXTRACT(YEAR FROM payment_date)::INT AS year, 
+                    'rent' AS account, 
+                    -SUM(amount) AS amt
+                FROM payments 
+                WHERE payment_type = 'rent' -- Hit the P&L directly
+                GROUP BY 1, 2
+                UNION ALL
+
                 -- 13. ACCOUNTS PAYABLE: Increase (When Accrued)
-                SELECT EXTRACT(YEAR FROM accrual_date)::INT AS year, 
-                'Accounts_Payable' AS account, 
-                SUM(amount) AS amt
+                SELECT 
+                    EXTRACT(YEAR FROM accrual_date)::INT AS year, 
+                    'Accounts_Payable' AS account, 
+                    SUM(amount) AS amt
                 FROM expense_accrual_schedule 
-                GROUP BY 1, 2
-                UNION ALL
+                GROUP BY 1, 2         
 
+                UNION ALL
                 -- 14. ACCOUNTS PAYABLE: Decrease (When Paid)
-                SELECT EXTRACT(YEAR FROM cash_payment_date)::INT AS year, 
-                'Accounts_Payable' AS account, 
-                -SUM(amount) AS amt
+                SELECT 
+                    EXTRACT(YEAR FROM cash_payment_date)::INT AS year, 
+                    'Accounts_Payable' AS account, 
+                    -SUM(amount) AS amt
                 FROM expense_accrual_schedule 
+                WHERE cash_payment_date IS NOT NULL
                 GROUP BY 1, 2
-            ),
+                ),
+
             yearly_summaries AS (
                 SELECT 
                     year,
@@ -299,6 +320,4 @@ def create_focus_view(end_year=2023):
             logger.info(f"Analytical views refreshed in Docker DB for end_year {end_year}.")
 
         except Exception as e:
-            logger.error(f"Error during transformations: {e}")      
-
-
+            logger.error(f"Error during transformations: {e}") 

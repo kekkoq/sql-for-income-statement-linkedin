@@ -6,7 +6,7 @@
             "server": "db",
             "port": 5432,
             "driver": "PostgreSQL",
-            "name": "Postgre Dev",
+            "name": "project DB",
             "database": "postgres",
             "username": "postgres"
         }

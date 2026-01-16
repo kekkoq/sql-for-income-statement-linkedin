@@ -83,27 +83,12 @@ Below is the documented resolution process.
   Bash
   `PGPASSWORD=postgres psql -h db -U postgres -d postgres -c "\dt"`
 
-## Data Dictionary
+## Database Schema & Data Model
+The project utilizes a relational PostgreSQL database consisting of 7 core tables, categorized into three functional areas:
 
-### 1. Table: `sales`
-This table represents the primary revenue stream for the business.
-
-| Column | Data Type | Description |
-| :--- | :--- | :--- |
-| `sale_at` | TIMESTAMP | The date and time the sale occurred. Primary key for time-series revenue analysis. |
-| `quantity` | INTEGER | The number of units sold in the transaction. |
-| `price` | NUMERIC | The unit price at the time of the transaction. |
-| `product_id` | INTEGER | Foreign key referencing the product catalog. |
-
-### 2. Table: `purchases`
-This table tracks inventory acquisition and cash outflows.
-
-| Column | Data Type | Description |
-| :--- | :--- | :--- |
-| `is_account` | BOOLEAN | Flag indicating if the purchase was made on credit (True) or cash (False). |
-| `delivery_day` | DATE | The scheduled date for the arrival of goods. |
-| `payment_at` | TIMESTAMP | The actual timestamp when the cash left the account. |
-| `delivery_at` | TIMESTAMP | The actual timestamp when the inventory was received. |
+- Transactional Core: sales, purchases, and payments (The primary drivers of cash flow).
+- Financing: loans (Tracking principal inflows and debt obligations).
+- Accounting Logic: Equipment_depreciation_schedule and expense_accrual_schedule (Used for calculating non-cash expenses and timing adjustments).
 
 ## Data Pipeline Workflow
 
@@ -128,9 +113,8 @@ Note: Once this data is loaded, the `extract_load()` function can be commented o
    
 Implemented accrual-to-cash timing adjustments, such as a 1-month lag for credit-based sales and purchases to model actual cash movement. To support accrual accounting and depreciation, the pipeline creates two tables before building the final report:
 
-**equipment_depreciation_schedule**: Pre-calculates 10-year asset depreciation using a CROSS JOIN with a generated Calendar table.
-
-**expense_accrual_schedule**: Shifts cash payments (wages, taxes, utilities) to the month they were actually incurred (Month-1 logic).
+- equipment_depreciation_schedule: Pre-calculates 10-year asset depreciation using a CROSS JOIN with a generated Calendar table.
+- expense_accrual_schedule: Shifts cash payments (wages, taxes, utilities) to the month they were actually incurred (Month-1 logic).
 
 3. Analytical Layer: The Flux View
    
@@ -162,7 +146,14 @@ To modify the financial logic:
 
 **Schema Discovery & Documentation**: Conducted a manual audit of the source database schema to identify critical columns for financial reporting, such as sale_at for temporal filtering and is_account for purchase categorization
 
+## Key Findings - Income Statement and Balance Sheet
 
+![P&L, Balance Sheet Comparison (2021 vs. 2022)](images/p_and_l_chart_fixed.png) 
+
+- Profitability: Total Revenue saw a slight decrease of ~4.4% year-over-year, dropping from $1.61M in 2021 to $1.54M in 2022.
+- Cash Position: Cash on hand increased from approximately $0.58M in 2021 to $0.72M in 2022, representing a 24% growth in liquidity.
+- Inventory: Inventory value remained relatively stable, decreasing slightly from $1.2M in 2021 to $1.1M in 2022, suggesting efficient stock management and turnover.
+- Debt Management: Long-term debt remaining was reduced year-over-year, dropping from $1.2M to $1.05M, which improves the company's debt-to-equity ratio.
 
 
 

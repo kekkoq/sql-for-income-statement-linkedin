@@ -1,0 +1,15 @@
+SELECT 
+    DATE_TRUNC('month', transaction_date) as month,
+    SUM(amount) as monthly_net,
+    SUM(SUM(amount)) OVER (ORDER BY DATE_TRUNC('month', transaction_date)) as running_balance
+FROM (
+    SELECT payment_at as transaction_date, SUM(quantity * price) as amount FROM sales GROUP BY 1
+    UNION ALL
+    SELECT payment_at as transaction_date, -SUM(quantity * amount) as amount FROM purchases GROUP BY 1
+    UNION ALL
+    SELECT loan_at as transaction_date, SUM(value) as amount FROM loans GROUP BY 1
+    UNION ALL
+    SELECT payment_date as transaction_date, -SUM(amount) as amount FROM payments GROUP BY 1
+) all_transactions
+GROUP BY 1
+ORDER BY 1;

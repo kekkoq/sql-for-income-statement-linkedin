@@ -148,7 +148,7 @@ To modify the financial logic:
 
 ## Key Findings - Income Statement and Balance Sheet
 
-![P&L, Balance Sheet Comparison (2021 vs. 2022)](images/p_and_l_chart_fixed.png) 
+![P&L, Balance Sheet Comparison (2021 vs. 2022)](Images/p_and_l_chart_fixed.png) 
 
 - Profitability: Total Revenue saw a slight decrease of ~4.4% year-over-year, dropping from $1.61M in 2021 to $1.54M in 2022.
 - Cash Position: Cash on hand increased from approximately $0.58M in 2021 to $0.72M in 2022, representing a 24% growth in liquidity.
